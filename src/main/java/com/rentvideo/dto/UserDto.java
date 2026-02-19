@@ -25,6 +25,22 @@ public class UserDto {
     }
 
     @Data
+    public static class LoginRequest {
+        @NotBlank @Email
+        private String email;
+
+        @NotBlank
+        private String password;
+    }
+
+    @Data
+    public static class AuthResponse {
+        private String token;
+        private String email;
+        private Role role;
+    }
+
+    @Data
     public static class UserResponse {
         private Long id;
         private String email;

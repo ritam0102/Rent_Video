@@ -1,38 +1,53 @@
 package com.rentvideo.controller;
 
-import com.rentvideo.dto.RegisterRequest;
+import com.rentvideo.dto.UserDto;
 import com.rentvideo.entity.Role;
 import com.rentvideo.entity.User;
 import com.rentvideo.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.rentvideo.security.JwtUtil;
+import com.rentvideo.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UserService userService;
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtil jwtUtil;
+    private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest req) {
+    public ResponseEntity<UserDto.UserResponse> register(@Valid @RequestBody UserDto.RegisterRequest request) {
+        return new ResponseEntity<>(userService.register(request), HttpStatus.CREATED);
+    }
 
-        User user = new User();
-        user.setEmail(req.email);
-        user.setPassword(passwordEncoder.encode(req.password));
-        user.setFirstName(req.firstName);
-        user.setLastName(req.lastName);
-        user.setRole(req.role == null ? Role.CUSTOMER : req.role);
+    @PostMapping("/login")
+    public ResponseEntity<UserDto.AuthResponse> login(@Valid @RequestBody UserDto.LoginRequest request) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
 
-        userRepository.save(user);
-        return ResponseEntity.ok("User registered successfully");
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+        final String jwt = jwtUtil.generateToken(userDetails);
+
+        User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
+
+        UserDto.AuthResponse response = new UserDto.AuthResponse();
+        response.setToken(jwt);
+        response.setEmail(user.getEmail());
+        response.setRole(user.getRole());
+
+        return ResponseEntity.ok(response);
     }
 }
